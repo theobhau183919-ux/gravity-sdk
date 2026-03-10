@@ -1,12 +1,13 @@
-mod mock_block_tree;
-
 pub mod block_executor {
-    use anyhow::{Ok, Result};
-    use std::sync::RwLock;
+    use anyhow::Result;
 
-    use aptos_executor_types::{BlockExecutorTrait, ExecutorResult, StateComputeResult};
+    use aptos_executor_types::{
+        BlockExecutorTrait, ExecutorError, ExecutorResult, StateComputeResult,
+    };
     use gaptos::{
         aptos_crypto::HashValue,
+        aptos_executor::block_executor::BlockExecutor as InnerBlockExecutor,
+        aptos_executor_types::BlockExecutorTrait as InnerBlockExecutorTrait,
         aptos_storage_interface::DbReaderWriter,
         aptos_types::{
             block_executor::{
@@ -14,28 +15,28 @@ pub mod block_executor {
             },
             ledger_info::LedgerInfoWithSignatures,
         },
+        aptos_vm::AptosVM,
     };
-
-    use crate::mock_block_tree::MockBlockTree;
 
     pub struct BlockExecutor {
         pub db: DbReaderWriter,
-        block_tree: RwLock<MockBlockTree>,
+        inner: InnerBlockExecutor<AptosVM>,
     }
 
     impl BlockExecutor {
         pub fn new(db: DbReaderWriter) -> Self {
-            Self { db, block_tree: RwLock::new(MockBlockTree::new()) }
+            let inner = InnerBlockExecutor::new(db.clone());
+            Self { db, inner }
         }
     }
 
     impl BlockExecutorTrait for BlockExecutor {
         fn committed_block_id(&self) -> HashValue {
-            self.block_tree.read().unwrap().commited_blocks.last().cloned().unwrap_or_default()
+            InnerBlockExecutorTrait::committed_block_id(&self.inner)
         }
 
         fn reset(&self) -> Result<()> {
-            Ok(())
+            InnerBlockExecutorTrait::reset(&self.inner).map_err(|e| anyhow::anyhow!(e.to_string()))
         }
 
         fn execute_and_state_checkpoint(
@@ -44,7 +45,13 @@ pub mod block_executor {
             parent_block_id: HashValue,
             onchain_config: BlockExecutorConfigFromOnchain,
         ) -> ExecutorResult<()> {
-            ExecutorResult::Ok(())
+            InnerBlockExecutorTrait::execute_and_update_state(
+                &self.inner,
+                block,
+                parent_block_id,
+                onchain_config,
+            )
+            .map_err(|e| ExecutorError::internal_err(e.to_string()))
         }
 
         fn ledger_update(
@@ -52,8 +59,10 @@ pub mod block_executor {
             block_id: HashValue,
             parent_block_id: HashValue,
         ) -> ExecutorResult<StateComputeResult> {
-            let res = StateComputeResult::with_root_hash(block_id);
-            ExecutorResult::Ok(res)
+            let res =
+                InnerBlockExecutorTrait::ledger_update(&self.inner, block_id, parent_block_id)
+                    .map_err(|e| ExecutorError::internal_err(e.to_string()))?;
+            Ok(StateComputeResult::with_root_hash(res.root_hash()))
         }
 
         fn commit_blocks(
@@ -61,14 +70,19 @@ pub mod block_executor {
             block_ids: Vec<HashValue>,
             ledger_info_with_sigs: LedgerInfoWithSignatures,
         ) -> ExecutorResult<()> {
-            self.block_tree.write().unwrap().commited_blocks.extend(block_ids);
-            ExecutorResult::Ok(())
+            for block_id in block_ids {
+                self.pre_commit_block(block_id)?;
+            }
+            self.commit_ledger(ledger_info_with_sigs, vec![])
         }
 
-        fn finish(&self) {}
+        fn finish(&self) {
+            InnerBlockExecutorTrait::finish(&self.inner)
+        }
 
         fn pre_commit_block(&self, block_id: HashValue) -> ExecutorResult<()> {
-            todo!()
+            InnerBlockExecutorTrait::pre_commit_block(&self.inner, block_id)
+                .map_err(|e| ExecutorError::internal_err(e.to_string()))
         }
 
         fn commit_ledger(
@@ -77,7 +91,29 @@ pub mod block_executor {
             ledger_info_with_sigs: LedgerInfoWithSignatures,
             randomness_data: Vec<(u64, Vec<u8>)>,
         ) -> ExecutorResult<()> {
-            todo!()
+            if !randomness_data.is_empty() {
+                return Err(ExecutorError::internal_err(
+                    "randomness_data is not supported by aptos-executor backend",
+                ));
+            }
+
+            if let Some(last_block_id) = block_ids.last() {
+                let commit_block_id = ledger_info_with_sigs.ledger_info().commit_info().id();
+                if commit_block_id != *last_block_id {
+                    return Err(ExecutorError::internal_err(format!(
+                        "ledger_info commit id {} does not match last block id {}",
+                        commit_block_id, last_block_id
+                    )));
+                }
+            }
+
+            for block_id in block_ids {
+                InnerBlockExecutorTrait::pre_commit_block(&self.inner, block_id)
+                    .map_err(|e| ExecutorError::internal_err(e.to_string()))?;
+            }
+
+            InnerBlockExecutorTrait::commit_ledger(&self.inner, ledger_info_with_sigs)
+                .map_err(|e| ExecutorError::internal_err(e.to_string()))
         }
     }
 }
