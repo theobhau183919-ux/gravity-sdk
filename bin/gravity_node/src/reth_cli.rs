@@ -1,6 +1,6 @@
 use crate::ConsensusArgs;
 use alloy_consensus::transaction::SignerRecoverable;
-use alloy_eips::{eip4895::Withdrawals, Decodable2718};
+use alloy_eips::{eip4895::Withdrawals, Decodable2718, Encodable2718};
 use alloy_primitives::{Address, TxHash, B256, U256};
 use block_buffer_manager::get_block_buffer_manager;
 use core::panic;
@@ -183,8 +183,16 @@ impl<EthApi: RethEthCall> RethCli<EthApi> {
             for (idx, txn) in block.txns.iter().enumerate() {
                 let key = (txn.sender.clone(), txn.sequence_number);
                 if let Some((_, cached_txn)) = self.txn_cache.remove(&key) {
-                    senders[idx] = Some(cached_txn.sender());
-                    transactions[idx] = Some(cached_txn.transaction.transaction().inner().clone());
+                    let cached_tx = cached_txn.transaction.transaction().tx();
+                    if cached_tx.encoded_2718() == txn.bytes {
+                        senders[idx] = Some(cached_txn.sender());
+                        transactions[idx] = Some(cached_txn.transaction.transaction().inner().clone());
+                    } else {
+                        warn!(
+                            "Cached transaction mismatch for sender {:?} nonce {}, decoding ordered block bytes",
+                            txn.sender, txn.sequence_number
+                        );
+                    }
                 }
             }
         }
