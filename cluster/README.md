@@ -41,10 +41,8 @@ make genesis
 ```
 *This generates `genesis.json` and `waypoint.txt` in `./output`.*
 
-> ⚠️ **Important**: The `genesis.sh` script will clone `gravity_chain_core_contracts` to `external/` if it doesn't exist, but will **NOT** automatically update it. To update:
-> ```bash
-> cd external/gravity_chain_core_contracts && git pull origin main
-> ```
+> ⚠️ **Security note**: `dependencies.genesis_contracts.ref` in `genesis.toml` must be pinned to a trusted **40-character commit hash** before running `make genesis`.
+> The script checks out exactly that commit and will fail if it is unset or not a full hash.
 
 ### 5. Deploy and Start
 ```bash

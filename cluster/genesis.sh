@@ -37,7 +37,17 @@ main() {
     log_info "Step 1: Checking external dependencies..."
     
     GENESIS_REPO=$(echo "$config_json" | jq -r '.dependencies.genesis_contracts.repo // "https://github.com/Galxe/gravity_chain_core_contracts.git"')
-    GENESIS_REF=$(echo "$config_json" | jq -r '.dependencies.genesis_contracts.ref // "main"')
+    GENESIS_REF=$(echo "$config_json" | jq -r '.dependencies.genesis_contracts.ref // empty')
+
+    if [ -z "$GENESIS_REF" ]; then
+        log_error "dependencies.genesis_contracts.ref must be set to a trusted commit hash."
+        exit 1
+    fi
+
+    if [[ ! "$GENESIS_REF" =~ ^[0-9a-fA-F]{40}$ ]]; then
+        log_error "dependencies.genesis_contracts.ref must be a full 40-character commit hash, got: $GENESIS_REF"
+        exit 1
+    fi
     
     GENESIS_CONTRACT_DIR="$EXTERNAL_DIR/gravity_chain_core_contracts"
     
@@ -47,16 +57,16 @@ main() {
         git clone "$GENESIS_REPO" "$GENESIS_CONTRACT_DIR"
     fi
 
-    # Checkout specified ref and pull latest (critical for branches to avoid stale bytecode)
-    log_info "Checking out ref: $GENESIS_REF..."
+    # Checkout pinned commit hash only (avoid running unpinned remote code)
+    log_info "Checking out pinned commit: $GENESIS_REF..."
     (
         cd "$GENESIS_CONTRACT_DIR"
         git fetch origin
         git checkout "$GENESIS_REF"
-        # Pull latest if on a branch (no-op for detached HEAD / commit hash)
-        if git symbolic-ref -q HEAD &>/dev/null; then
-            log_info "Pulling latest changes for branch $GENESIS_REF..."
-            git pull origin "$GENESIS_REF"
+        checked_out_commit=$(git rev-parse HEAD)
+        if [ "$checked_out_commit" != "$GENESIS_REF" ]; then
+            log_error "Checked out commit ($checked_out_commit) does not match expected ref ($GENESIS_REF)"
+            exit 1
         fi
         cd -
     )
