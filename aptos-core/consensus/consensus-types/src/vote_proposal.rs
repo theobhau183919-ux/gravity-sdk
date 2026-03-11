@@ -4,8 +4,7 @@
 
 use crate::{block::Block, vote_data::VoteData};
 use gaptos::{
-    aptos_crypto,
-    aptos_crypto::hash::ACCUMULATOR_PLACEHOLDER_HASH,
+    aptos_crypto::HashValue,
     aptos_crypto_derive::{BCSCryptoHash, CryptoHasher},
     aptos_types::{epoch_state::EpochState, proof::accumulator::InMemoryTransactionAccumulator},
 };
@@ -21,6 +20,10 @@ pub struct VoteProposal {
     block: Block,
     /// An optional field containing the next epoch info.
     next_epoch_state: Option<EpochState>,
+    /// Executed state id to embed into vote data.
+    executed_state_id: HashValue,
+    /// Executed state version to embed into vote data.
+    executed_state_version: u64,
     /// Represents whether the executed state id is dummy or not.
     decoupled_execution: bool,
 }
@@ -29,9 +32,17 @@ impl VoteProposal {
     pub fn new(
         block: Block,
         next_epoch_state: Option<EpochState>,
+        executed_state_id: HashValue,
+        executed_state_version: u64,
         decoupled_execution: bool,
     ) -> Self {
-        Self { block, next_epoch_state, decoupled_execution }
+        Self {
+            block,
+            next_epoch_state,
+            executed_state_id,
+            executed_state_version,
+            decoupled_execution,
+        }
     }
 
     pub fn block(&self) -> &Block {
@@ -46,8 +57,8 @@ impl VoteProposal {
     fn vote_data_ordering_only(&self) -> VoteData {
         VoteData::new(
             self.block().gen_block_info(
-                *ACCUMULATOR_PLACEHOLDER_HASH,
-                0,
+                self.executed_state_id,
+                self.executed_state_version,
                 self.next_epoch_state().cloned(),
             ),
             self.block().quorum_cert().certified_block().clone(),
@@ -75,7 +86,7 @@ impl VoteProposal {
         if self.decoupled_execution {
             Ok(self.vote_data_ordering_only())
         } else {
-            panic!("decoupled_execution must be true")
+            anyhow::bail!("missing accumulator extension proof for coupled execution")
         }
     }
 }

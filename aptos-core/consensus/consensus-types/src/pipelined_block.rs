@@ -219,8 +219,8 @@ impl PipelinedBlock {
         });
 
         if has_previous {
-            if previous.root_hash == execution_summary.root_hash ||
-                previous.root_hash == *ACCUMULATOR_PLACEHOLDER_HASH
+            if previous.root_hash == execution_summary.root_hash
+                || previous.root_hash == *ACCUMULATOR_PLACEHOLDER_HASH
             {
                 warn!(
                     "Skipping re-inserting execution result, from {:?} to {:?}",
@@ -354,7 +354,15 @@ impl PipelinedBlock {
     }
 
     pub fn vote_proposal(&self) -> VoteProposal {
-        VoteProposal::new(self.block.clone(), self.compute_result().epoch_state().clone(), true)
+        let version =
+            if let Some(block_number) = self.block().block_number() { block_number } else { 0 };
+        VoteProposal::new(
+            self.block.clone(),
+            self.compute_result().epoch_state().clone(),
+            self.compute_result().root_hash(),
+            version,
+            true,
+        )
     }
 
     pub fn order_vote_proposal(&self, quorum_cert: Arc<QuorumCert>) -> OrderVoteProposal {
