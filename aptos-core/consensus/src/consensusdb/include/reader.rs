@@ -15,25 +15,14 @@ use gaptos::aptos_types::{
     state_store::{state_key::StateKey, state_value::StateValue},
     transaction::Version,
 };
-use once_cell::sync::OnceCell;
-
-static VALIDATOR_SET: OnceCell<ValidatorSet> = OnceCell::new();
-
 impl ConsensusDB {
-    pub fn validator_set(&self) -> ValidatorSet {
-        VALIDATOR_SET
-            .get_or_init(|| {
-                let validator_set_config = GLOBAL_CONFIG_STORAGE
-                    .get()
-                    .unwrap()
-                    .fetch_config_bytes(GravityOnChainConfig::ValidatorSet, 0.into());
-                let validator_bytes =
-                    TryInto::<Bytes>::try_into(validator_set_config.unwrap()).unwrap();
-                let validator_set =
-                    ValidatorSet::deserialize_into_config(&validator_bytes).unwrap();
-                validator_set
-            })
-            .clone()
+    pub fn validator_set(&self, block_number: Version) -> ValidatorSet {
+        let validator_set_config = GLOBAL_CONFIG_STORAGE
+            .get()
+            .unwrap()
+            .fetch_config_bytes(GravityOnChainConfig::ValidatorSet, block_number.into());
+        let validator_bytes = TryInto::<Bytes>::try_into(validator_set_config.unwrap()).unwrap();
+        ValidatorSet::deserialize_into_config(&validator_bytes).unwrap()
     }
 }
 
@@ -58,7 +47,7 @@ impl DbReader for ConsensusDB {
             None => {
                 let genesis = LedgerInfoWithSignatures::genesis(
                     *ACCUMULATOR_PLACEHOLDER_HASH,
-                    self.validator_set(),
+                    self.validator_set(0),
                 );
                 info!("genesis is {:?}", genesis);
                 Ok(genesis)
@@ -71,7 +60,7 @@ impl DbReader for ConsensusDB {
         if known_version == 0 {
             ledger_infos.push(LedgerInfoWithSignatures::genesis(
                 *ACCUMULATOR_PLACEHOLDER_HASH,
-                self.validator_set(),
+                self.validator_set(0),
             ));
         }
         ledger_infos.extend(
@@ -98,7 +87,7 @@ impl DbReader for ConsensusDB {
                 StateKeyInner::AccessPath(p) => {
                     let path = p.to_string();
                     if path.contains("Validator") {
-                        bcs::to_bytes(&self.validator_set())?
+                        bcs::to_bytes(&self.validator_set(version))?
                     } else if path.contains("consensus") {
                         let mut consensus_conf = OnChainConsensusConfig::default();
                         // todo(gravity_byteyue): currently we set quorum_store_enabled=false
