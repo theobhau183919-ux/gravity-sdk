@@ -37,7 +37,7 @@ main() {
     log_info "Step 1: Checking external dependencies..."
     
     GENESIS_REPO=$(echo "$config_json" | jq -r '.dependencies.genesis_contracts.repo // "https://github.com/Galxe/gravity_chain_core_contracts.git"')
-    GENESIS_REF=$(echo "$config_json" | jq -r '.dependencies.genesis_contracts.ref // "main"')
+    GENESIS_REF=$(echo "$config_json" | jq -r '.dependencies.genesis_contracts.ref // "gravity-testnet-v1.0.0"')
     
     GENESIS_CONTRACT_DIR="$EXTERNAL_DIR/gravity_chain_core_contracts"
     
