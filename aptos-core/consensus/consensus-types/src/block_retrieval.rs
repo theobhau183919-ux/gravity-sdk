@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{block::Block, quorum_cert::QuorumCert};
-use anyhow::ensure;
+use anyhow::{ensure, Context};
 use gaptos::{
     api_types::ExecutionBlocks,
     aptos_crypto::hash::{HashValue, GENESIS_BLOCK_ID},
@@ -154,7 +154,13 @@ impl BlockRetrievalResponse {
                 );
                 Ok(block.parent_id())
             })
-            .map(|_| ())
+            .map(|_| ())?;
+
+        self.ledger_infos.iter().try_for_each(|ledger_info| {
+            ledger_info
+                .verify_signatures(sig_verifier)
+                .context("failed to verify ledger info signatures in block retrieval response")
+        })
     }
 }
 
