@@ -135,17 +135,22 @@ impl BlockRetrievalResponse {
         sig_verifier: &ValidatorVerifier,
     ) -> anyhow::Result<()> {
         ensure!(
-            self.status != BlockRetrievalStatus::Succeeded ||
-                self.blocks.len() as u64 == retrieval_request.num_blocks(),
+            self.status != BlockRetrievalStatus::Succeeded
+                || self.blocks.len() as u64 == retrieval_request.num_blocks(),
             "not enough blocks returned, expect {}, get {}",
             retrieval_request.num_blocks(),
             self.blocks.len(),
         );
         self.blocks
             .iter()
-            .try_fold(retrieval_request.block_id(), |expected_id, (block, _)| {
+            .try_fold(retrieval_request.block_id(), |expected_id, (block, randomness)| {
                 block.validate_signature(sig_verifier)?;
                 block.verify_well_formed()?;
+                ensure!(
+                    randomness.is_none() || block.block_number().is_some(),
+                    "randomness payload requires block number for block {}",
+                    block.id(),
+                );
                 ensure!(
                     block.id() == expected_id,
                     "blocks doesn't form a chain: expect {}, get {}",
