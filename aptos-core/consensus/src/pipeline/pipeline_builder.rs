@@ -450,12 +450,26 @@ impl PipelineBuilder {
             .author()
             .and_then(|author| validator.iter().position(|&v| v == author).map(|i| i as u64));
 
+        let safe_randomness = maybe_rand.and_then(|r| {
+            let bytes = r.randomness();
+            if bytes.len() == 32 {
+                Some(Random::from_bytes(bytes))
+            } else {
+                warn!(
+                    block_id = ?block.id(),
+                    len = bytes.len(),
+                    "Ignoring malformed randomness bytes while building ordered block metadata"
+                );
+                None
+            }
+        });
+
         let meta_data = ExternalBlockMeta {
             block_id: BlockId(*block.id()),
             block_number: block.block_number().unwrap_or_else(|| panic!("No block number")),
             usecs: block.timestamp_usecs(),
             epoch: block.epoch(),
-            randomness: maybe_rand.map(|r| Random::from_bytes(r.randomness())),
+            randomness: safe_randomness,
             block_hash: None,
             proposer_index,
         };
