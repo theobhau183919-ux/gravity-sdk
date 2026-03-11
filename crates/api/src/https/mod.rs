@@ -9,7 +9,7 @@ use aptos_consensus::consensusdb::ConsensusDB;
 use axum::{
     body::Body,
     extract::{DefaultBodyLimit, Path, State},
-    http::Request,
+    http::{header::HeaderMap, Request},
     middleware::{self, Next},
     response::Response,
     routing::{get, post},
@@ -58,8 +58,13 @@ impl HttpsServer {
         let get_tx_by_hash_lambda =
             |Path(request): Path<HashValue>| async move { get_tx_by_hash(request).await };
 
-        let set_fail_point_lambda =
-            |Json(request): Json<FailpointConf>| async move { set_failpoint(request).await };
+        let set_fail_point_lambda = |headers: HeaderMap, Json(request): Json<FailpointConf>| async move {
+            let auth_token = headers
+                .get("x-failpoint-token")
+                .and_then(|value| value.to_str().ok())
+                .map(|value| value.to_owned());
+            set_failpoint(request, auth_token).await
+        };
 
         let control_profiler_lambda = |Json(request): Json<
             heap_profiler::ControlProfileRequest,
@@ -202,6 +207,7 @@ mod test {
         let address = "127.0.0.1:5425".to_owned();
         let cert_pem = Some(PathBuf::from(dir.clone() + "/src/https/test/cert.pem"));
         let key_pem = Some(PathBuf::from(dir.clone() + "/src/https/test/key.pem"));
+        std::env::set_var("FAILPOINT_AUTH_TOKEN", "test-token");
         let _handler = tokio::spawn(https_server(address, cert_pem, key_pem, None));
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         // read a local binary pem encoded certificate
@@ -220,9 +226,14 @@ mod test {
         assert!(test_fail_point().is_none());
         let mut map = HashMap::new();
         map.insert("name", "unit_test_fail_point");
-        map.insert("action", "return");
-        let res =
-            client.post("http://127.0.0.1:5425/set_failpoint").json(&map).send().await.unwrap();
+        map.insert("actions", "return");
+        let res = client
+            .post("http://127.0.0.1:5425/set_failpoint")
+            .header("x-failpoint-token", "test-token")
+            .json(&map)
+            .send()
+            .await
+            .unwrap();
         assert!(res.status().is_success(), "res is {res:?}");
         assert!(test_fail_point().is_some());
 

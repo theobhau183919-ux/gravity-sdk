@@ -10,6 +10,8 @@ use axum::Json;
 use gaptos::aptos_logger::prelude::*;
 use serde::{Deserialize, Serialize};
 
+const FAILPOINT_AUTH_TOKEN_ENV: &str = "FAILPOINT_AUTH_TOKEN";
+
 #[derive(Deserialize, Serialize)]
 pub struct FailpointConf {
     name: String,
@@ -23,7 +25,18 @@ pub struct FailpointConfResponse {
 }
 
 #[cfg(feature = "failpoints")]
-pub async fn set_failpoint(request: FailpointConf) -> impl IntoResponse {
+pub async fn set_failpoint(
+    request: FailpointConf,
+    auth_token: Option<String>,
+) -> impl IntoResponse {
+    let expected = std::env::var(FAILPOINT_AUTH_TOKEN_ENV).ok().filter(|token| !token.is_empty());
+    if expected.is_none() || auth_token != expected {
+        return (
+            axum::http::StatusCode::FORBIDDEN,
+            "Failpoint endpoint is disabled or unauthorized".to_string(),
+        )
+            .into_response();
+    }
     match fail::cfg(&request.name, &request.actions) {
         Ok(_) => {
             info!("Configured failpoint {} to {}", request.name, request.actions);
@@ -38,7 +51,7 @@ pub async fn set_failpoint(request: FailpointConf) -> impl IntoResponse {
 }
 
 #[cfg(not(feature = "failpoints"))]
-pub async fn set_failpoint(_: FailpointConf) -> impl IntoResponse {
+pub async fn set_failpoint(_: FailpointConf, _: Option<String>) -> impl IntoResponse {
     (
         axum::http::StatusCode::BAD_REQUEST,
         "Failpoints are not enabled at a feature level".to_string(),
