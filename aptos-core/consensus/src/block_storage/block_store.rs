@@ -549,7 +549,19 @@ impl BlockStore {
                 // In recovery mode, use existing randomness from the block
                 let randomness = if self.enable_randomness && p_block.epoch() != 1 {
                     match p_block.randomness() {
-                        Some(r) => Some(Random::from_bytes(r.randomness())),
+                        Some(r) => {
+                            let bytes = r.randomness();
+                            if bytes.len() == 32 {
+                                Some(Random::from_bytes(bytes))
+                            } else {
+                                warn!(
+                                    block_id = ?p_block.block().id(),
+                                    len = bytes.len(),
+                                    "Ignoring malformed randomness bytes during recovery"
+                                );
+                                None
+                            }
+                        }
                         None => {
                             return Err(anyhow::anyhow!(
                                 "Randomness is required but not found in block {}",
