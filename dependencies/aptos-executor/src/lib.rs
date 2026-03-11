@@ -67,17 +67,17 @@ pub mod block_executor {
 
         fn finish(&self) {}
 
-        fn pre_commit_block(&self, block_id: HashValue) -> ExecutorResult<()> {
-            todo!()
+        fn pre_commit_block(&self, _block_id: HashValue) -> ExecutorResult<()> {
+            Ok(())
         }
 
         fn commit_ledger(
             &self,
             block_ids: Vec<HashValue>,
             ledger_info_with_sigs: LedgerInfoWithSignatures,
-            randomness_data: Vec<(u64, Vec<u8>)>,
+            _randomness_data: Vec<(u64, Vec<u8>)>,
         ) -> ExecutorResult<()> {
-            todo!()
+            self.commit_blocks(block_ids, ledger_info_with_sigs)
         }
     }
 }
