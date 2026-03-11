@@ -128,11 +128,11 @@ prop_compose! {
 prop_compose! {
     pub fn arb_vote_proposal(
     )(
-        accumulator_extension_proof in arb_accumulator_extension_proof(),
+        _accumulator_extension_proof in arb_accumulator_extension_proof(),
         block in arb_block(),
         next_epoch_state in arb_epoch_state(),
     ) -> VoteProposal {
-        VoteProposal::new(block, next_epoch_state, false)
+        VoteProposal::new(block, next_epoch_state, HashValue::zero(), 0, false)
     }
 }
 
