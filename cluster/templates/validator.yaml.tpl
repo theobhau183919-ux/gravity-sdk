@@ -53,7 +53,7 @@ full_node_networks:
       path: ${CONFIG_DIR}/identity.yaml
     discovery_method:
       onchain
-    mutual_authentication: false
+    mutual_authentication: true
 
 storage:
   dir: "${DATA_DIR}/data"
