@@ -103,15 +103,15 @@ impl HttpsServer {
         let https_routes = Router::new()
             .route("/tx/submit_tx", post(submit_tx_lambda))
             .route("/tx/get_tx_by_hash/:hash_value", get(get_tx_by_hash_lambda))
-            .layer(middleware::from_fn(ensure_https));
-        let http_routes = Router::new()
-            .route("/dkg/status", get(get_dkg_status_lambda))
-            .route("/dkg/randomness/:block_number", get(get_randomness_lambda))
             .route("/consensus/latest_ledger_info", get(get_latest_ledger_info_lambda))
             .route("/consensus/ledger_info/:epoch", get(get_ledger_info_by_epoch_lambda))
             .route("/consensus/block/:epoch/:round", get(get_block_lambda))
             .route("/consensus/qc/:epoch/:round", get(get_qc_lambda))
             .route("/consensus/validator_count/:epoch", get(get_validator_count_lambda))
+            .layer(middleware::from_fn(ensure_https));
+        let http_routes = Router::new()
+            .route("/dkg/status", get(get_dkg_status_lambda))
+            .route("/dkg/randomness/:block_number", get(get_randomness_lambda))
             .route("/set_failpoint", post(set_fail_point_lambda))
             .route("/mem_prof", post(control_profiler_lambda));
 
