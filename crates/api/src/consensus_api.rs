@@ -199,15 +199,18 @@ impl ConsensusEngine {
                 ));
             }
 
-            // Register consensus (both client and server) with the network
-            let network_handle = register_client_and_service_with_network(
-                &mut network_builder,
-                network_id,
-                &network_config,
-                consensus_network_configuration(&node_config),
-                true,
-            );
-            consensus_network_handles.push(network_handle);
+            // Register consensus (both client and server) only on validator-facing networks.
+            // This avoids exposing consensus RPCs on public fullnode networks.
+            if network_id.is_validator_network() || network_id.is_vfn_network() {
+                let network_handle = register_client_and_service_with_network(
+                    &mut network_builder,
+                    network_id,
+                    &network_config,
+                    consensus_network_configuration(&node_config),
+                    true,
+                );
+                consensus_network_handles.push(network_handle);
+            }
 
             // Register mempool (both client and server) with the network
             let mempool_network_handle = register_client_and_service_with_network(
