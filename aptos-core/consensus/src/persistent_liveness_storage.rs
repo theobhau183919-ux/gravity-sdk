@@ -297,7 +297,8 @@ impl RecoveryData {
                 order_vote_enabled,
             )?;
         }
-        let blocks_to_prune = Some(vec![]);
+        let blocks_to_prune =
+            Some(Self::find_blocks_to_prune(root.0.id(), &mut blocks, &mut quorum_certs));
         let epoch = root.0.epoch();
         Ok(RecoveryData {
             last_vote: match last_vote {
@@ -393,7 +394,6 @@ impl PersistentLivenessStorage for StorageWriteProxy {
     }
 
     fn prune_tree(&self, block_keys: Vec<(u64, HashValue)>) -> Result<()> {
-        panic!("Can't delete blocks");
         if !block_keys.is_empty() {
             // quorum certs that certified the block_ids will get removed
             self.db.delete_blocks_and_quorum_certificates(block_keys)?;
@@ -481,11 +481,17 @@ impl PersistentLivenessStorage for StorageWriteProxy {
             order_vote_enabled,
             raw_data.4,
         ) {
-            Ok(initial_data) => {
-                // TODO(gravity_lightman)
-                // (self as &dyn PersistentLivenessStorage)
-                //     .prune_tree(initial_data.take_blocks_to_prune())
-                //     .expect("unable to prune dangling blocks during restart");
+            Ok(mut initial_data) => {
+                let prune_epoch = initial_data.root.0.epoch();
+                (self as &dyn PersistentLivenessStorage)
+                    .prune_tree(
+                        initial_data
+                            .take_blocks_to_prune()
+                            .into_iter()
+                            .map(|block_id| (prune_epoch, block_id))
+                            .collect(),
+                    )
+                    .expect("unable to prune dangling blocks during restart");
                 if initial_data.last_vote.is_none() {
                     self.db.delete_last_vote_msg().expect("unable to cleanup last vote");
                 }

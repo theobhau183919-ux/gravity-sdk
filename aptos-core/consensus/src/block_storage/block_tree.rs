@@ -559,8 +559,14 @@ impl BlockTree {
             block_id = block_to_commit.id(),
         );
 
-        let prune_block_id = blocks_to_commit.last().expect("pipeline is empty").id();
+        let prune_block_id = blocks_to_commit.first().expect("pipeline is empty").parent_id();
         let ids_to_remove = self.find_blocks_to_prune(prune_block_id);
+        if let Err(e) = storage.prune_tree(ids_to_remove.clone().into_iter().collect()) {
+            // it's fine to fail here, as long as the commit succeeds, the next restart will clean
+            // up dangling blocks, and we need to prune the tree to keep the root consistent with
+            // executor.
+            warn!(error = ?e, "fail to delete block");
+        }
         self.process_pruned_blocks(ids_to_remove);
 
         self.update_highest_commit_cert(commit_proof);
