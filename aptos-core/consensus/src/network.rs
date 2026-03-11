@@ -704,7 +704,6 @@ impl NetworkTask {
 
     pub async fn start(mut self) {
         while let Some(message) = self.all_events.next().await {
-            debug!("NetworkTask received message {:?}", message);
             monitor!(
                 "network_main_loop",
                 match message {
