@@ -6,7 +6,7 @@
         "http.port": ${RPC_PORT},
         "http.corsdomain": "*",
         "http.api": "debug,eth,net,trace,txpool,web3,rpc",
-        "http.addr": "0.0.0.0",
+        "http.addr": "127.0.0.1",
         "dev": "",
         "port": ${P2P_PORT_RETH},
         "authrpc.port": ${AUTHRPC_PORT},
